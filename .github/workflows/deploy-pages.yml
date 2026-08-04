@@ -1,0 +1,64 @@
+# 部署到 GitHub Pages（README「部署」章节）
+#
+# 使用前提（一次性，需在仓库 Settings 中操作）：
+#   Settings → Pages → Source 选择「GitHub Actions」
+#
+# 说明：
+# - Pages 无 Node 运行时，构建脚本会临时移出 app/api 并输出纯静态站点（out/）
+# - 前端自动切换为直连 DeepSeek 模式（CORS 已验证支持）
+# - basePath 自动取仓库名（项目站点 URL 为 https://<user>.github.io/<repo>/）
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时间只允许一个 Pages 部署进行中
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static export
+        run: npm run build:pages
+        env:
+          # 项目站点路径 = /<仓库名>；若部署到用户/组织主页（<user>.github.io）
+          # 或自定义域名，将仓库改名为 <user>.github.io 后此值自动为 "/"
+          NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
