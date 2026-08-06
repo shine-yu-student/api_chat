@@ -158,3 +158,35 @@ export function saveSettings(s: Settings) {
 - [ ] 防抖写入与失败兜底
 - [ ] 「清除本地数据」流程
 - [ ] 单测：settings 合并逻辑；db 层用 fake-indexeddb（测试文档第 4 节）
+
+## 8. 数据备份（导出/导入，FR-15）
+
+> 入口在侧边栏用户菜单（「导出数据」/「导入数据」）；核心逻辑在 `lib/storage/export-import.ts`（纯函数可单测），UI 见 ui-design.md 4.8。
+
+### 8.1 备份文件格式
+
+```ts
+// lib/types.ts
+export const BACKUP_FORMAT = "deepseek-chat-backup";
+export const BACKUP_VERSION = 1;
+
+export interface BackupData {
+  format: typeof BACKUP_FORMAT;
+  version: number;          // 当前固定为 1
+  exportedAt: number;       // 导出时间戳
+  sessions: Session[];      // 全部会话（含 messages 分支树、usage、System Prompt 快照）
+  prompts: SystemPrompt[];  // 用户自定义 System Prompt（内置条目不导出）
+}
+```
+
+- 导出：`serializeBackup(sessions, prompts)` 序列化为 JSON（`JSON.stringify(data, null, 2)`），文件名 `deepseek-chat-backup-YYYYMMDD-HHmmss.json`，浏览器下载（Blob + `URL.createObjectURL`）。
+- 导出内容为会话全量对象（含思维链/消息全文），为明文 JSON，仅本地下载，不涉及网络传输；**不导出** API Key、设置项、内置 System Prompt。
+
+### 8.2 导入
+
+1. `parseBackup(json)` 解析并校验：非法 JSON、`format !== "deepseek-chat-backup"`、`version` 不在支持列表（当前 `[1]`）均抛可读错误，**不写入任何数据**。
+2. 会话/库条目逐条校验（`isValidSession` / `isValidPrompt` 最小字段检查），畸形条目跳过并计数。
+3. 写库复用 db.ts `putSession`/`putPrompt`；**同 id 条目跳过、保留本地**（不覆盖）；`isBuiltin: true` 的 prompt 忽略（内置条目不落库）。
+4. 写库完成后重载会话 store（若流式中先 stopStreaming），并提示「导入 N、跳过 M」。
+
+> 导入是「合并」而非「覆盖」语义：两台设备各自导出再互相导入可无损合并；导入不导入设置与 API Key。

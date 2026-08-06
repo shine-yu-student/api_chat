@@ -79,6 +79,8 @@ export interface Settings {
   defaultSystemPromptId: string; // 新建会话预选的库条目 id（默认 "builtin-default"）
   darkMode: boolean;
   anonUserId: string;         // 限流隔离用，uuid
+  sidebarWidth: number;       // 侧边栏宽度 px（FR-14，默认 260，范围 200~480）
+  sidebarCollapsed: boolean;  // 侧边栏是否收起（FR-14，默认 false，仅桌面生效）
 }
 ```
 

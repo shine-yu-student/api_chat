@@ -13,6 +13,7 @@
 | 温度 | Slider（0~2，步进 0.1） | 1.0 | `settings.temperature` | 思考模式关闭时生效 |
 | 默认 System Prompt | Select（库条目选择，内置恒在）+「管理库…」按钮 | 内置基础 Prompt | `settings.defaultSystemPromptId` | 新建会话的预选项；库管理见 prompt-library.md |
 | 深色模式 | Switch | 跟随系统（默认亮） | `settings.darkMode` | 另在用户菜单有快捷切换 |
+| 侧边栏宽度 / 收起 | 边栏右缘拖拽 + 收起按钮（FR-14） | 260px / 展开 | `settings.sidebarWidth` / `settings.sidebarCollapsed` | 见 ui-design.md 4.7；仅桌面端生效，移动端恒为抽屉 |
 
 ## 2. 设置对话框交互
 

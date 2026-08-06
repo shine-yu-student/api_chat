@@ -93,6 +93,22 @@ export interface Settings {
   defaultSystemPromptId: string; // 新建会话预选的库条目 id（默认 "builtin-default"）
   darkMode: boolean;
   anonUserId: string; // 限流隔离用，uuid
+  sidebarWidth: number; // 侧边栏宽度 px（FR-14，默认 260，范围 200~480）
+  sidebarCollapsed: boolean; // 侧边栏是否收起（FR-14，默认 false，仅桌面端生效）
+}
+
+// ---------- 数据备份（导出/导入，FR-15） ----------
+
+/** 备份文件格式标识（session-storage.md 第 8 节） */
+export const BACKUP_FORMAT = "deepseek-chat-backup";
+export const BACKUP_VERSION = 1;
+
+export interface BackupData {
+  format: typeof BACKUP_FORMAT;
+  version: number; // 当前固定为 1
+  exportedAt: number; // 导出时间戳
+  sessions: Session[]; // 全部会话（含 messages 分支树、usage、System Prompt 快照）
+  prompts: SystemPrompt[]; // 用户自定义 System Prompt（内置条目不导出）
 }
 
 // ---------- 请求契约（前端 → 后端代理 → DeepSeek） ----------

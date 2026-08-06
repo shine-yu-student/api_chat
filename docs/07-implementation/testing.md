@@ -23,6 +23,7 @@
 | `error map` | ① HTTP→code 映射表全量；② context_too_long 特征识别 |
 | `settings.ts` | ① 默认值合并；② JSON 损坏回退默认；③ apiKey 独立读写；④ defaultSystemPromptId 指向不存在条目时回退内置；⑤ 旧自定义指令一次性迁移 |
 | `db.ts`（fake-indexeddb） | ① put/getAll 倒序；② delete；③ 版本升级不破坏数据；④ prompts store CRUD；⑤ v1→v2 升级保留 sessions |
+| `export-import.ts`（FR-15） | ① serializeBackup → parseBackup roundtrip 数据一致；② 非法 JSON / format 不符 / version 不支持 → 明确报错；③ 正常导入写库（会话 + 自定义 prompt）；④ 同 id 冲突跳过保留本地；⑤ 内置 prompt（isBuiltin）不导入；⑥ 畸形条目跳过并计数；⑦ 导出不含内置条目 |
 | `prompt-library` 逻辑 | ① 锁定规则：空会话可更换、已有 user 消息后 selectSystemPrompt 为 no-op；② 快照隔离：删除/修改库条目不影响已锁定会话的 systemPromptText；③ usePromptStore 加载 = 内置 + 自定义合并 |
 | 组件 | ① CodeBlock 复制按钮（clipboard mock）；② 表格渲染；③ 思考面板折叠/展开；④ 用量行命中率计算；⑤ PromptSelectDialog 选择生效；⑥ PromptBadge 锁定后无「更换」入口；⑦ PromptManager 内置条目禁编辑/删除 |
 
@@ -97,6 +98,16 @@ curl -N -s -X POST http://localhost:3000/api/chat \
 - [ ] 修改某库条目内容 → 已开始会话继续使用旧内容（DevTools 网络面板核对 instructions 未变）
 - [ ] 删除默认条目 → 默认自动回退内置；「设为默认」后新建会话预选生效
 - [ ] 自定义条目全删后内置仍可用；「清除本地数据」后库清空、内置仍在
+
+### 4.8 侧边栏与数据备份（FR-14 / FR-15）
+- [ ] FR-14 桌面端拖动边栏右缘手柄：宽度实时变化，范围 200~480px；松手后刷新页面宽度保持
+- [ ] FR-14 点击收起按钮 → 边栏完全隐藏、主区占满；顶栏汉堡按钮点击展开；刷新后收起状态保持
+- [ ] FR-14 移动端（375px）边栏仍为抽屉，宽度 ≤ 85vw，行为与改动前一致
+- [ ] FR-15 用户菜单「导出数据」→ 下载 `deepseek-chat-backup-*.json`；打开文件确认含 format/version 字段、全部会话与自定义 Prompt（无内置条目）
+- [ ] FR-15 清空本地数据后「导入数据」选择该文件 → 确认框显示将导入的会话/条目数 → 确认后会话出现在边栏、可切换查看，刷新后仍在
+- [ ] FR-15 重复导入同一文件 → 提示「导入 0、跳过 N」，本地数据不被覆盖
+- [ ] FR-15 导入非本应用 JSON（或损坏文件）→ 明确错误提示，不写入任何数据
+- [ ] FR-15 生成中导入 → 先停止生成再导入，界面不崩溃
 
 ## 5. 缓存命中专项验证
 

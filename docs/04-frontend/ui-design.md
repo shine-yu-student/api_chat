@@ -7,7 +7,7 @@
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│  Sidebar（左侧边栏，桌面 260px / 移动端抽屉）                          │
+│  Sidebar（左侧边栏，桌面可调宽 200~480px，默认 260px / 移动端抽屉）     │
 │  ┌────────────────────┐ ┌──────────────────────────────────────────┐│
 │  │ [+ 新对话]          │ │  Topbar：模型选择器 [DeepSeek-V4 Flash ▾]  ││
 │  │ ─────────────────   │ │          会话标题（可点击重命名）           ││
@@ -16,9 +16,9 @@
 │  │  · 会话2            │ │   [用户消息 右对齐气泡]                     ││
 │  │  · …（搜索框）       │ │   [助手消息 左对齐整宽 + 思考/引用/正文]      ││
 │  │                     │ │──────────────────────────────────────────││
-│  │ 用户菜单（设置/关于） │ │  ChatInput（底部输入区，居中 max-w-3xl）     ││
-│  │                     │ │  [多行输入框] [深度思考] [联网搜索] [发送]    ││
-│  └────────────────────┘ └──────────────────────────────────────────┘│
+│  │ 用户菜单（设置/关于/ │ │  ChatInput（底部输入区，居中 max-w-3xl）     ││
+│  │ 导出/导入）          │ │  [多行输入框] [深度思考] [联网搜索] [发送]    ││
+│  └────────────────────┘ │┘ 右缘拖拽手柄（桌面，调整宽度 / 收起入口）     │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -39,7 +39,7 @@ app/page.tsx（客户端）
     │   ├── <ConversationSearch />     // 会话搜索框（过滤列表）
     │   ├── <ConversationList />       // 按 updatedAt 倒序；当前项高亮
     │   │   └── <ConversationItem />   // 标题 + 删除(×)；双击/菜单重命名
-    │   └── <UserMenu />               // 头像/菜单：设置、深色模式切换
+    │   └── <UserMenu />               // 头像/菜单：设置、深色模式切换、导出数据、导入数据
     ├── <Topbar>
     │   ├── <ModelSelect />            // 下拉：DeepSeek-V4 Flash / DeepSeek-V4 Pro
     │   ├── <PromptBadge />            // System Prompt 只读标识（已锁定会话）/「更换」入口（空会话）
@@ -90,11 +90,11 @@ app/page.tsx（客户端）
 - 字号：正文 15px / 1.7 行高；代码块 13.5px
 - 字体栈：`Inter` / 系统中文字体（`-apple-system, "PingFang SC", "Microsoft YaHei"`）
 - 圆角：按钮 8px；气泡 12px；输入区容器 12px
-- 边栏宽 260px；顶栏高 56px
+- 边栏宽可调（默认 260px，范围 200~480px）；顶栏高 56px
 
 ### 3.3 图标
 
-- lucide-react：`Plus`（新对话）、`Search`、`Settings`、`Moon/Sun`、`Send`、`Square`（停止）、`Copy`、`RefreshCw`（重试）、`Globe`（联网）、`Brain`/`Sparkles`（深度思考）、`ChevronDown`、`X`、`Pencil`（重命名）、`Trash2`
+- lucide-react：`Plus`（新对话）、`Search`、`Settings`、`Moon/Sun`、`Send`、`Square`（停止）、`Copy`、`RefreshCw`（重试）、`Globe`（联网）、`Brain`/`Sparkles`（深度思考）、`ChevronDown`、`X`、`Pencil`（重命名）、`Trash2`、`Menu`（汉堡）、`ChevronsLeft`（收起边栏）、`Download`/`Upload`（导出/导入数据）
 
 ## 4. 关键交互规范
 
@@ -145,9 +145,18 @@ app/page.tsx（客户端）
 - 会话搜索：按标题模糊过滤
 - 移动端（<768px）：边栏为抽屉，顶栏汉堡按钮开合，遮罩点击关闭
 
+**桌面端可调宽与收起（FR-14）**：
+- 边栏右缘有拖拽手柄（垂直细条，`cursor-col-resize`，`hidden md:block`）：按住拖动实时调整宽度，范围 200~480px（拖动中经 mousemove 即时生效，松手写回设置）
+- 收起入口：拖拽手柄上方提供「收起」按钮（ChevronsLeft 图标）；收起后边栏完全隐藏（`-translate-x-full`），顶栏左侧出现汉堡按钮点击展开
+- 宽度（`sidebarWidth`）与收起状态（`sidebarCollapsed`）持久化于设置（localStorage，经 useSettingsStore），刷新后恢复
+- 移动端抽屉宽度沿用 260px 并限制 `max-w-[85vw]`，不受桌面宽度设置影响
+- 拖拽/收起仅改变布局，不触碰会话数据，流式生成中可正常操作
+
 ### 4.8 设置入口
 
-- 边栏底部用户菜单（圆形头像占位「D」）→ 下拉：设置 / 切换深色模式 / 关于
+- 边栏底部用户菜单（圆形头像占位「D」）→ 下拉：设置 / 切换深色模式 / 导出数据 / 导入数据
+- 导出数据：将全部会话 + 自定义 System Prompt 库序列化为 JSON（见 session-storage.md 第 8 节），触发浏览器下载，完成后底部 toast「已导出 N 个会话」
+- 导入数据：隐藏 `input[type=file]`（accept `.json,application/json`）→ FileReader 解析 → 先弹确认对话框（显示将导入的会话/库条目数，说明同 id 冲突项将跳过）→ 确认后写库 → 重载会话 store → toast「导入 N、跳过 M」；格式/版本不符给出明确错误，不写入任何数据
 - 设置对话框：居中 Modal（宽 480px），表单见 settings.md
 
 ### 4.9 System Prompt 选择与锁定标识（FR-11）

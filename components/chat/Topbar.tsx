@@ -28,6 +28,8 @@ export function Topbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
   );
   const setModel = useChatStore((s) => s.setModel);
   const renameSession = useChatStore((s) => s.renameSession);
+  const sidebarCollapsed = useSettingsStore((s) => s.sidebarCollapsed);
+  const setSidebarCollapsed = useSettingsStore((s) => s.setSidebarCollapsed);
 
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState("");
@@ -50,11 +52,20 @@ export function Topbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:px-4">
-      {/* 移动端：打开侧栏抽屉 */}
+      {/* 汉堡按钮：移动端始终显示（开抽屉）；桌面仅在侧边栏收起时显示（展开，FR-14） */}
       <button
         type="button"
-        onClick={onOpenSidebar}
-        className="flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
+        onClick={() => {
+          if (window.innerWidth >= 768 && sidebarCollapsed) {
+            setSidebarCollapsed(false);
+          } else {
+            onOpenSidebar();
+          }
+        }}
+        className={cn(
+          "flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+          sidebarCollapsed ? "md:flex" : "md:hidden"
+        )}
         aria-label="打开侧边栏"
         title="打开侧边栏"
       >

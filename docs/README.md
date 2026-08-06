@@ -81,7 +81,7 @@ docs/
 
 | 模块 | 关键产出 |
 |---|---|
-| 01-requirements | 11 项功能需求 + 7 项非功能需求，每条带验收标准 |
+| 01-requirements | 15 项功能需求 + 7 项非功能需求，每条带验收标准 |
 | 02-architecture | 三层结构（前端 → 代理 → DeepSeek）、SSE 数据流图、TypeScript 依赖清单 |
 | 03-api-integration | 完整请求体构造规则、事件表、思考/联网/缓存的参数映射与边界 |
 | 04-frontend | 组件树、zustand store 结构、流式 UI 更新协议、设置页表单、System Prompt 库（FR-11） |

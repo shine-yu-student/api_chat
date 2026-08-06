@@ -24,6 +24,8 @@ export interface SettingsStore {
   defaultSystemPromptId: string;
   darkMode: boolean;
   anonUserId: string;
+  sidebarWidth: number; // FR-14：侧边栏宽度 px（默认 260）
+  sidebarCollapsed: boolean; // FR-14：侧边栏是否收起（默认 false）
 
   setDefaultModel: (model: ModelId) => void;
   setThinkingEnabled: (v: boolean) => void;
@@ -33,6 +35,8 @@ export interface SettingsStore {
   setDefaultSystemPromptId: (id: string) => void;
   setDarkMode: (v: boolean) => void;
   toggleDarkMode: () => void;
+  setSidebarWidth: (w: number) => void;
+  setSidebarCollapsed: (v: boolean) => void;
 }
 
 /** 生成/读取匿名用户 id（限流隔离用），独立 localStorage key */
@@ -87,6 +91,8 @@ export const useSettingsStore = create<SettingsStore>()(
       defaultSystemPromptId: BUILTIN_PROMPT_ID,
       darkMode: false,
       anonUserId: ensureAnonUserId(),
+      sidebarWidth: 260,
+      sidebarCollapsed: false,
 
       setDefaultModel: (defaultModel) => set({ defaultModel }),
       setThinkingEnabled: (thinkingEnabled) => set({ thinkingEnabled }),
@@ -103,6 +109,8 @@ export const useSettingsStore = create<SettingsStore>()(
       toggleDarkMode: () => {
         get().setDarkMode(!get().darkMode);
       },
+      setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
+      setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
     }),
     {
       name: STORAGE_KEYS.settings,
@@ -116,6 +124,8 @@ export const useSettingsStore = create<SettingsStore>()(
         temperature: s.temperature,
         defaultSystemPromptId: s.defaultSystemPromptId,
         darkMode: s.darkMode,
+        sidebarWidth: s.sidebarWidth,
+        sidebarCollapsed: s.sidebarCollapsed,
       }),
       onRehydrateStorage: () => (state) => {
         // 持久化恢复后应用深色模式
