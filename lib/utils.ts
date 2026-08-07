@@ -34,3 +34,13 @@ export function formatDuration(ms: number): string {
   const safe = Number.isFinite(ms) && ms >= 0 ? ms : 0;
   return `${(safe / 1000).toFixed(1)} 秒`;
 }
+
+/**
+ * token 数 → 紧凑展示（ui-design.md 4.1 上下文大小标签）：
+ * - < 1000：原样；≥ 1000：K 缩写保留一位小数并去尾 .0（1000 → "1K"，1234 → "1.2K"）
+ */
+export function formatTokenCount(n: number): string {
+  const safe = Number.isFinite(n) && n > 0 ? n : 0;
+  if (safe < 1000) return String(Math.round(safe));
+  return `${(safe / 1000).toFixed(1).replace(/\.0$/, "")}K`;
+}

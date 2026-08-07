@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { estimateTokens } from "@/lib/utils/token-estimate";
+import { formatTokenCount } from "@/lib/utils";
 
 describe("estimateTokens（context-cache.md 第 5 节）", () => {
   it("空串为 0", () => {
@@ -21,5 +22,24 @@ describe("estimateTokens（context-cache.md 第 5 节）", () => {
     const n = estimateTokens(text);
     expect(n).toBeGreaterThan(0);
     expect(n).toBeLessThanOrEqual(text.length);
+  });
+});
+
+describe("formatTokenCount（ui-design.md 4.1 上下文大小标签）", () => {
+  it("0 与负数 → 0", () => {
+    expect(formatTokenCount(0)).toBe("0");
+    expect(formatTokenCount(-5)).toBe("0");
+  });
+
+  it("< 1000 原样显示", () => {
+    expect(formatTokenCount(999)).toBe("999");
+    expect(formatTokenCount(123)).toBe("123");
+  });
+
+  it("≥ 1000 使用 K 缩写并保留一位小数（去尾 .0）", () => {
+    expect(formatTokenCount(1000)).toBe("1K");
+    expect(formatTokenCount(1234)).toBe("1.2K");
+    expect(formatTokenCount(9999)).toBe("10K");
+    expect(formatTokenCount(1500)).toBe("1.5K");
   });
 });

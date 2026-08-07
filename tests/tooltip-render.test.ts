@@ -19,7 +19,7 @@ const { Topbar } = await import("@/components/chat/Topbar");
 const { useChatStore } = await import("@/lib/store/useChatStore");
 
 describe("Tooltip Provider 回归（修复：Tooltip must be used within TooltipProvider）", () => {
-  it("锁定态会话渲染 Topbar（含 PromptBadge Tooltip）不抛错", () => {
+  it("锁定态会话渲染 Topbar（含 PromptBadge 对话框）不抛错", () => {
     useChatStore.setState({
       sessions: [
         {

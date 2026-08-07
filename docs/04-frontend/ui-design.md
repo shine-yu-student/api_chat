@@ -59,6 +59,7 @@ app/page.tsx（客户端）
     │       ├── <Textarea autoResize>       // 多行，Enter 发送
     │       ├── <ThinkingToggle />          // 深度思考开关（含强度长按/菜单）
     │       ├── <WebSearchToggle />         // 联网搜索开关
+    │       ├── <ContextSizeLabel />        // 发送按钮左侧：上下文大小（悬浮显示上一轮用量）
     │       └── <SendButton /> / <StopButton />
     └── <SettingsDialog>（Modal）
         ├── 设置表单（见 settings.md）
@@ -104,6 +105,7 @@ app/page.tsx（客户端）
 - 发送中：输入框禁用、发送按钮变「停止」方块按钮（红色 hover）
 - 空内容/仅空白 → 发送按钮禁用
 - 未配置 API Key 时点击发送 → 弹出设置对话框并提示（不发请求）
+- **上下文大小**：发送按钮左侧显示「上下文 N」（N 为本地估算 token 数，K 缩写如 `1.2K`；口径 = 当前会话路径消息 + System Prompt 快照，与发送前截断预算一致，见 context-cache.md 第 5 节）；鼠标悬浮弹出与当前主题匹配的浮窗（`bg-background + border-border`），展示**上一轮真实用量**：缓存输入 / 非缓存输入 / 输出 / 思考 / 缓存率；无上一轮数据时显示占位文案
 - 底部免责小字：「内容由 AI 生成，仅供学习参考」（仿 DeepSeek）
 
 ### 4.2 深度思考开关
@@ -162,7 +164,7 @@ app/page.tsx（客户端）
 ### 4.9 System Prompt 选择与锁定标识（FR-11）
 
 - **空会话（对话开始前）**：欢迎视图显示当前 System Prompt 卡片（名称 + 内容预览 + 「更换」按钮）；顶栏同位置显示可点击胶囊；两者均弹出 <PromptSelectDialog>（prompt-library.md 第 4.1 节）
-- **已锁定（发送首条消息后）**：顶栏胶囊变只读（名称 + 📋 图标），无「更换」按钮；点击 tooltip 展示全文（prompt-library.md 第 4.2 节）
+- **已锁定（发送首条消息后）**：顶栏胶囊变只读（名称 + 📋 图标），无「更换」按钮；点击胶囊弹出居中对话框展示 System Prompt 全文（可滚动，跟随主题，见 prompt-library.md 第 4.2 节）
 - 锁定瞬间（首条消息发送时）UI 同步切换：选择器消失 → 只读胶囊出现
 
 ## 5. 空态 / 加载 / 错误状态

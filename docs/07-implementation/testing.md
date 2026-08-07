@@ -20,6 +20,7 @@
 | `build-input.ts` | ① user/assistant 顺序映射；② 无工具轮不插 reasoning；③ 有工具轮（hadToolCall）插 reasoning item；④ web_search.callId 存在时插入 web_search_call item（原 id）；⑤ 截断后顺序正确 |
 | `parse-sse.ts` | ① 解析完整流（created→reasoning delta→output delta→completed）断言事件序列；② 跨块边界（事件被 \n\n 切分）解析正确；③ 无 [DONE] 时 EOF 正常结束 |
 | `truncate-history.ts` | ① 成对丢弃（user+assistant）；② 不拆 web_search 轮；③ 预算边界（略超预算→截断至安全值）；④ 保留 instructions |
+| `token-estimate.ts` | ① estimateTokens 中/英文计数；② `formatTokenCount`（0→"0"、999→"999"、1000→"1K"、1234→"1.2K"、9999→"10K"） |
 | `error map` | ① HTTP→code 映射表全量；② context_too_long 特征识别 |
 | `settings.ts` | ① 默认值合并；② JSON 损坏回退默认；③ apiKey 独立读写；④ defaultSystemPromptId 指向不存在条目时回退内置；⑤ 旧自定义指令一次性迁移 |
 | `db.ts`（fake-indexeddb） | ① put/getAll 倒序；② delete；③ 版本升级不破坏数据；④ prompts store CRUD；⑤ v1→v2 升级保留 sessions |

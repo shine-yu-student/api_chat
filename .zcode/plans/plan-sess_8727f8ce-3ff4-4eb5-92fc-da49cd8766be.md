@@ -1,88 +1,81 @@
 ## 背景
 
-项目为 Next.js 15 + zustand + IndexedDB 的 DeepSeek 对话应用，所有实现以 `docs/` 为唯一依据。本次新增两项功能，**先更新文档、再实现代码、最后补测试验证**。
+项目为 Next.js 15 + zustand 的 DeepSeek 对话应用，实现以 `docs/` 为唯一依据，**先更新文档、再实现、后测试**。
 
-已确认决策：
-- 导出范围：全部会话 + 用户自定义 System Prompt 库（内置条目不导出）
-- 导入冲突：同 id 会话/条目跳过、保留本地
-- 桌面收起形式：完全隐藏 + 顶栏汉堡按钮展开
+本次两项 UI 改动：
+
+**A. System Prompt 全文展示改为居中对话框**
+- 现状：锁定态顶栏胶囊用 Radix Tooltip（`bg-foreground text-background` 反色，暗色模式下即"白色浮窗"）悬浮展示全文，长文体验差、与主题不搭。
+- 目标：改为点击胶囊 → 浏览器中央弹出 Dialog 显示全文（可滚动、跟随主题）。
+
+**B. 输入框显示上下文大小 + 悬浮用量详情**
+- 在输入区右下角发送/停止按钮左侧显示「上下文 1.2K」。
+- 悬浮（hover）时弹出**与主题匹配**的浮窗（`bg-background + border-border`，非反色 Tooltip），展示**上一轮真实用量**：缓存输入、非缓存输入、输出、思考、缓存率。
+- 已确认口径：主显示 = **本地估算**（`estimateTokens` 对当前路径消息 + System Prompt 快照求和，含 instructions，与发送前截断预算口径一致）；格式 = **K 缩写**（如 1.2K）。
 
 ---
 
-## 第一步：文档更新（先文档后代码）
+## 第一步：文档更新
 
-1. **docs/01-requirements/requirements.md**
-   - 新增 FR-14「侧边栏可调宽度与收起」：桌面端拖拽调宽（200–480px）、可完全收起、顶栏按钮展开、宽度/收起状态持久化、移动端保持抽屉；附验收标准。
-   - 新增 FR-15「对话数据导出/导入」：导出全部会话 + 自定义 System Prompt 库为 JSON 备份文件（含 format/version）；导入校验格式、同 id 跳过保留本地、导入后会话可恢复、刷新不丢失；附验收标准。
+1. **docs/04-frontend/prompt-library.md**
+   - 第 3 节生命周期「锁定」行：`tooltip 可查看全文` → `点击名称弹窗查看全文`。
+   - 第 4.2 节「锁定标识」：改为「点击胶囊在居中对话框展示全文（可滚动，跟随主题）」，去掉 tooltip 描述。
 
 2. **docs/04-frontend/ui-design.md**
-   - 第 1 节布局图：边栏宽度改为「可调（默认 260px）」，标注拖拽手柄与收起按钮。
-   - 第 4.7 节边栏：拖拽调整宽度（右缘手柄，min 200 / max 480）、桌面完全收起（顶栏按钮展开）、宽度与收起状态持久化。
-   - 组件树：Sidebar 用户菜单增加「导出数据 / 导入数据」；Topbar 汉堡按钮描述更新（移动端抽屉 + 桌面收起态展开）。
+   - 4.9「已锁定」行：`点击 tooltip 展示全文` → `点击弹出居中对话框展示全文（可滚动，跟随主题）`。
+   - 组件树：ChatInput 子组件新增「上下文大小标签」（发送按钮左侧，悬浮显示上一轮用量）。
+   - 4.1 输入区新增一条交互规范：发送按钮左侧显示当前对话上下文大小（本地估算、K 缩写）；悬浮浮窗跟随主题，展示上一轮缓存输入/非缓存输入/输出/思考/缓存率；无上一轮数据时显示占位。
 
-3. **docs/04-frontend/chat-state.md**
-   - Settings 接口新增 `sidebarWidth: number`、`sidebarCollapsed: boolean`。
-
-4. **docs/04-frontend/settings.md**
-   - localStorage schema 补充 `settings.sidebarWidth` / `settings.sidebarCollapsed`（经 useSettingsStore persist）。
-
-5. **docs/06-storage/session-storage.md**
-   - 新增「数据备份（导出/导入）」节：备份文件 JSON 格式 `{ format: "deepseek-chat-backup", version: 1, exportedAt, sessions: Session[], prompts: SystemPrompt[] }`；导出不含内置 prompt；导入校验（format/version 不符报错、畸形条目跳过）、同 id 跳过保留本地、内置条目不导入、导入后重载 store。
-
-6. **docs/07-implementation/testing.md**
-   - 单元测试清单增加 export-import 用例（序列化 roundtrip、格式校验、冲突跳过、内置忽略、写库）。
-   - 手工验收清单增加 4.8「侧边栏与数据备份」小节。
-
-7. **docs/README.md 与 README.md**
-   - 文档速览表更新（功能需求 13 → 15 项）；README 功能特性表加「侧边栏可调宽/收起」「数据导出/导入」两行。
+3. **docs/07-implementation/testing.md**
+   - 单元测试清单补充：`formatTokenCount`（<1000 原数、1000→1K、1234→1.2K、0→0）。
 
 ---
 
 ## 第二步：代码实现
 
-### 功能 1：侧边栏可调宽/收起
+### 功能 A：PromptBadge 弹窗
 
-8. **lib/types.ts**：`Settings` 接口新增 `sidebarWidth: number`、`sidebarCollapsed: boolean`；新增备份类型 `BackupData`（`{ format: "deepseek-chat-backup"; version: 1; exportedAt: number; sessions: Session[]; prompts: SystemPrompt[] }`）与常量 `BACKUP_FORMAT`/`BACKUP_VERSION`。
+4. **components/prompt/PromptBadge.tsx**
+   - 锁定态：`Tooltip/TooltipTrigger/TooltipContent` 替换为 `<button onClick={() => setDetailOpen(true)}>`（胶囊样式不变，加 `cursor-pointer`）+ 受控 `<Dialog>`。
+   - Dialog 内容：`DialogHeader`（标题「System Prompt（已锁定）」+ 名称描述）→ 内容区 `<div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap">` 显示 `session.systemPromptText`（沿用 PromptSelectDialog 的滚动写法）。
+   - 空会话态（PromptSelectDialog）保持不变；组件 docblock 注释同步更新。
+   - 不删除 Tooltip 组件（B 功能仍使用）。
 
-9. **lib/store/useSettingsStore.ts**：新增字段 `sidebarWidth`（默认 260）、`sidebarCollapsed`（默认 false）及 `setSidebarWidth` / `setSidebarCollapsed`；`partialize` 加入两个字段以便持久化。
+### 功能 B：上下文大小 + 悬浮详情
 
-10. **components/sidebar/Sidebar.tsx**
-    - 去掉硬编码 `w-[260px]`，改 `style={{ width: sidebarWidth }}` + `max-w-[85vw]`（移动端限制），aside 加 `relative`。
-    - 桌面拖拽手柄：aside 右缘垂直条（`hidden md:block`，`cursor-col-resize`），onMouseDown 起全局 mousemove/mouseup 监听，宽度 clamp 200–480，松手写回 settings。
-    - 桌面收起：`sidebarCollapsed` 时 `md:-translate-x-full`，展开时 `md:translate-x-0`（移动抽屉逻辑保持不变）。
-    - 用户菜单（DropdownMenu）新增「导出数据」「导入数据」两项：
-      - 导出：`serializeBackup(sessions, prompts)` → Blob 下载 `deepseek-chat-backup-YYYYMMDD-HHmmss.json`，底部 toast「已导出 N 个会话」。
-      - 导入：隐藏 `<input type="file" accept=".json,application/json">` → FileReader 解析 → `parseBackup` 校验 → 确认 Dialog（显示将导入的会话/条目数，说明冲突跳过）→ 执行导入写库 → 重载 store（若流式中先 stopStreaming；loadAll 后尝试恢复原 activeSessionId）→ toast 结果（导入 N、跳过 M）。
+5. **lib/utils.ts**：新增 `formatTokenCount(n)` —— `<1000` 原样、`≥1000` 输出 `(n/1000).toFixed(1)` 去尾 `.0` + `K`（0→"0"、1000→"1K"、1234→"1.2K"）。
 
-### 功能 2：导出/导入
+6. **components/chat/ChatInput.tsx**
+   - 新增订阅：`activeSession`（`useChatStore`）、`getPathMessages`、`estimateTokens`、`formatTokenCount`、`Tooltip`。
+   - `useMemo` 计算：
+     - `contextTokens` = `Σ estimateTokens(路径消息 content + reasoning) + estimateTokens(systemPromptText)`。
+     - `lastAssistant` = 路径中最后一条 assistant 消息（其 `usage` 即"上一轮真实用量"；可能为 `undefined`）。
+   - JSX：将发送/停止按钮包进右侧 `<div className="flex items-center gap-2">`，其左侧放上下文标签：
+     - 标签：`<button className="text-xs text-muted-foreground ...">上下文 {formatTokenCount(contextTokens)}</button>`（`cursor-default`）。
+     - 悬浮：`<TooltipContent side="top" className="bg-background text-foreground border border-border shadow-lg">`（覆盖默认反色，主题匹配）：
+       - 有 usage：标题「上一轮用量」+ 行：缓存输入、非缓存输入（= inputTokens − cachedTokens）、输出、思考、缓存率（沿用 UsageLine 的 `inputTokens>0 ? round(cached/input*100) : 0` 公式）。
+       - 无 usage：占位「暂无上一轮用量数据」。
+   - 空会话（无消息）时上下文标签仍显示（= System Prompt 快照估算）。
 
-11. **lib/storage/export-import.ts**（新文件，纯函数可单测）
-    - `serializeBackup(sessions, prompts): string`
-    - `parseBackup(json: string): BackupData`（format/version 校验，抛 `ChatError`/Error 可读文案）
-    - `importBackup(data: BackupData): Promise<{ importedSessions; skippedSessions; importedPrompts; skippedPrompts }>`：复用 db.ts `putSession`/`putPrompt`；同 id 跳过；内置 prompt（`isBuiltin`）忽略；畸形条目跳过计数。
+---
 
-12. **components/chat/Topbar.tsx**：汉堡按钮由 `md:hidden` 改为「移动端常显；桌面仅在收起时显示」，点击时桌面展开（`setSidebarCollapsed(false)`）、移动端开抽屉。
+## 第三步：测试与验证
 
-13. **components/chat/ChatShell.tsx**：无需结构性改动（Sidebar 自读 settings store）；仅确认 props 透传不变。
-
-### 第三步：测试与验证
-
-14. **tests/export-import.test.ts**（新文件，仿 useChatStore.test.ts 的 mock 约定 + fake-indexeddb）：
-    - serializeBackup → parseBackup roundtrip 数据一致
-    - parseBackup：错误 format / 不支持 version / 非法 JSON → 报错
-    - importBackup：正常导入写库；同 id 冲突跳过；内置 prompt 不落库；畸形条目跳过
-15. 运行 `npm test`（新增 + 既有 48 用例全绿）与 `npm run build`（类型检查通过）；若可行跑 `npm run dev` 冒烟。
+7. **tests/token-estimate.test.ts**（或新增 `tests/format-token-count.test.ts`）：`formatTokenCount` 边界用例。
+8. **tests/tooltip-render.test.ts**：断言保持（锁定态渲染 Topbar 不抛错），更新测试名/描述（PromptBadge 不再使用 Tooltip，改验渲染含 Dialog 结构）。
+9. 运行 `npm test`、`npx tsc --noEmit`、`npm run build` 全部通过。
 
 ---
 
 ## 涉及文件汇总
 
-- 文档：`docs/01-requirements/requirements.md`、`docs/04-frontend/ui-design.md`、`docs/04-frontend/chat-state.md`、`docs/04-frontend/settings.md`、`docs/06-storage/session-storage.md`、`docs/07-implementation/testing.md`、`docs/README.md`、`README.md`
-- 代码：`lib/types.ts`、`lib/store/useSettingsStore.ts`、`lib/storage/export-import.ts`（新）、`components/sidebar/Sidebar.tsx`、`components/chat/Topbar.tsx`
-- 测试：`tests/export-import.test.ts`（新）
+- 文档：`docs/04-frontend/prompt-library.md`、`docs/04-frontend/ui-design.md`、`docs/07-implementation/testing.md`
+- 代码：`lib/utils.ts`、`components/prompt/PromptBadge.tsx`、`components/chat/ChatInput.tsx`
+- 测试：`tests/token-estimate.test.ts`（或新文件）、`tests/tooltip-render.test.ts`
 
 ## 风险与边界
 
-- 拖拽宽度仅桌面端生效；移动端抽屉宽度沿用（≤85vw）。
-- 导入不校验 API Key、不导入设置项（仅会话与库条目），避免越界。
-- 备份为明文 JSON（含思维链/消息全文），仅本地下载，不涉及网络传输。
+- 浮窗跟随主题：B 功能用 Radix Tooltip + 覆盖 className（`bg-background text-foreground border-border`），TooltipProvider 已全局包裹（layout.tsx），无需新增 Provider。
+- 上一轮 `usage` 可能缺失（失败/停止/context_too_long 重试后），浮窗做占位处理，不崩溃。
+- 上下文大小为本地估算（非真实 API 计数），与截断预算同口径，文档注明。
+- PromptBadge 移除 Tooltip 后既有 tooltip-render 测试逻辑仍通过（它断言渲染不抛错），仅更新描述。

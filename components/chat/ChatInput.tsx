@@ -11,10 +11,12 @@ import {
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { useChatStore } from "@/lib/store/useChatStore";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { getPathMessages, useChatStore } from "@/lib/store/useChatStore";
 import { useSettingsStore } from "@/lib/store/useSettingsStore";
-import type { ThinkingEffort } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { estimateTokens } from "@/lib/utils/token-estimate";
+import type { ThinkingEffort, UsageInfo } from "@/lib/types";
+import { cn, formatTokenCount } from "@/lib/utils";
 
 const EFFORT_OPTIONS: { value: ThinkingEffort; label: string }[] = [
   { value: "low", label: "低" },
@@ -41,6 +43,9 @@ export function ChatInput() {
   const clearStreamError = useChatStore((s) => s.clearStreamError);
   const sendMessage = useChatStore((s) => s.sendMessage);
   const stopStreaming = useChatStore((s) => s.stopStreaming);
+  const activeSession = useChatStore((s) =>
+    s.sessions.find((x) => x.id === s.activeSessionId)
+  );
 
   const thinkingEnabled = useSettingsStore((s) => s.thinkingEnabled);
   const setThinkingEnabled = useSettingsStore((s) => s.setThinkingEnabled);
@@ -87,6 +92,30 @@ export function ChatInput() {
       void handleSend();
     }
   };
+
+  // 上下文大小（ui-design.md 4.1）：当前会话路径消息 + System Prompt 快照的本地估算，
+  // 与发送前截断预算口径一致（不含则可能低估 instructions 部分）
+  const pathMessages = React.useMemo(
+    () => (activeSession ? getPathMessages(activeSession) : []),
+    [activeSession]
+  );
+  const contextTokens = React.useMemo(
+    () =>
+      (activeSession ? estimateTokens(activeSession.systemPromptText) : 0) +
+      pathMessages.reduce(
+        (n, m) =>
+          n +
+          estimateTokens(m.content) +
+          (m.reasoning ? estimateTokens(m.reasoning) : 0),
+        0
+      ),
+    [activeSession, pathMessages]
+  );
+  // 上一轮真实用量（悬浮详情）：当前路径最后一条 assistant 消息；无则显示占位
+  const lastAssistant = React.useMemo(
+    () => [...pathMessages].reverse().find((m) => m.role === "assistant"),
+    [pathMessages]
+  );
 
   const isModelError =
     streamError?.includes("暂不支持") ?? false;
@@ -214,34 +243,60 @@ export function ChatInput() {
               </button>
             </div>
 
-            {/* 发送 / 停止 */}
-            {streaming ? (
-              <button
-                type="button"
-                onClick={stopStreaming}
-                className="flex size-10 items-center justify-center rounded-full bg-red-500 text-white transition-colors hover:bg-red-600"
-                aria-label="停止生成"
-                title="停止生成"
-              >
-                <Square className="size-4 fill-current" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void handleSend()}
-                disabled={!canSend}
-                className={cn(
-                  "flex size-10 items-center justify-center rounded-full transition-colors",
-                  canSend
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                    : "cursor-not-allowed bg-muted text-muted-foreground"
-                )}
-                aria-label="发送"
-                title="发送"
-              >
-                <Send className="size-4" />
-              </button>
-            )}
+            {/* 发送 / 停止（左侧为上下文大小，悬浮显示上一轮用量，ui-design.md 4.1） */}
+            <div className="flex items-center gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    className="cursor-default text-xs text-muted-foreground select-none"
+                    title="查看上一轮用量"
+                  >
+                    上下文 {formatTokenCount(contextTokens)}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  className="border border-border bg-background text-foreground shadow-lg"
+                >
+                  {lastAssistant?.usage ? (
+                    <div className="min-w-44">
+                      <p className="mb-1.5 font-medium">上一轮用量</p>
+                      <UsageDetail usage={lastAssistant.usage} />
+                    </div>
+                  ) : (
+                    <span>暂无上一轮用量数据</span>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+
+              {streaming ? (
+                <button
+                  type="button"
+                  onClick={stopStreaming}
+                  className="flex size-10 items-center justify-center rounded-full bg-red-500 text-white transition-colors hover:bg-red-600"
+                  aria-label="停止生成"
+                  title="停止生成"
+                >
+                  <Square className="size-4 fill-current" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void handleSend()}
+                  disabled={!canSend}
+                  className={cn(
+                    "flex size-10 items-center justify-center rounded-full transition-colors",
+                    canSend
+                      ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                      : "cursor-not-allowed bg-muted text-muted-foreground"
+                  )}
+                  aria-label="发送"
+                  title="发送"
+                >
+                  <Send className="size-4" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -251,5 +306,34 @@ export function ChatInput() {
         </p>
       </div>
     </div>
+  );
+}
+
+/**
+ * 上一轮真实用量明细（ui-design.md 4.1 上下文大小悬浮浮窗）：
+ * 缓存输入 / 非缓存输入 / 输出 / 思考 / 缓存率（公式与 MessageItem UsageLine 一致）
+ */
+function UsageDetail({ usage }: { usage: UsageInfo }) {
+  const hitRate =
+    usage.inputTokens > 0
+      ? Math.round((usage.cachedTokens / usage.inputTokens) * 100)
+      : 0;
+  const uncached = Math.max(0, usage.inputTokens - usage.cachedTokens);
+  const rows: { label: string; value: string }[] = [
+    { label: "缓存输入", value: String(usage.cachedTokens) },
+    { label: "非缓存输入", value: String(uncached) },
+    { label: "输出", value: String(usage.outputTokens) },
+    { label: "思考", value: String(usage.reasoningTokens) },
+    { label: "缓存率", value: `${hitRate}%` },
+  ];
+  return (
+    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 text-xs">
+      {rows.map((r) => (
+        <React.Fragment key={r.label}>
+          <dt className="text-muted-foreground">{r.label}</dt>
+          <dd className="text-right font-medium tabular-nums">{r.value}</dd>
+        </React.Fragment>
+      ))}
+    </dl>
   );
 }
